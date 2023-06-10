@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "kernel.h": "c",
+        "xvmalloc_int.h": "c",
+        "zsmalloc.h": "c",
+        "mm.h": "c"
+    }
+}
