@@ -14,7 +14,7 @@
 
 MODULE_LICENSE("Dual MIT/GPL");
 MODULE_AUTHOR("National Cheng Kung University, Taiwan");
-MODULE_DESCRIPTION("allocater benchmark driver");
+MODULE_DESCRIPTION("allocator benchmark driver");
 MODULE_VERSION("0.1");
 
 #define DEV_BENCH_NAME "bench"
