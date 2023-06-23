@@ -19,7 +19,6 @@
 
 #include "xvmalloc.h"
 #include "xvmalloc_int.h"
-#include "kmap_types.h"
 
 static void stat_inc(u64 *value)
 {
@@ -51,7 +50,7 @@ static void clear_flag(struct block_header *block, enum blockflags flag)
  * This is called from xv_malloc/xv_free path, so it
  * needs to be fast.
  */
-static void *get_ptr_atomic(struct page *page, u16 offset, enum km_type type)
+static void *get_ptr_atomic(struct page *page, u16 offset)
 {
 	unsigned char *base;
 
@@ -59,7 +58,7 @@ static void *get_ptr_atomic(struct page *page, u16 offset, enum km_type type)
 	return base + offset;
 }
 
-static void put_ptr_atomic(void *ptr, enum km_type type)
+static void put_ptr_atomic(void *ptr)
 {
 	kunmap_atomic(ptr);
 }
@@ -120,30 +119,24 @@ static u32 get_index(u32 size)
 static u32 find_block(struct xv_pool *pool, u32 size,
 			struct page **page, u32 *offset)
 {
-	//printk("5.1------------------------------------------------\n");
 	ulong flbitmap, slbitmap;
 	u32 flindex, slindex, slbitstart;
-	//printk("5.2------------------------------------------------\n");
 	/* There are no free blocks in this pool */
 	if (!pool->flbitmap)
 		return 0;
-	//printk("5.3------------------------------------------------\n");
 	/* Get freelist index correspoding to this size */
 	slindex = get_index(size);
 	slbitmap = pool->slbitmap[slindex / BITS_PER_LONG];
 	slbitstart = slindex % BITS_PER_LONG;
-	//printk("5.4------------------------------------------------\n");
 	/*
 	 * If freelist is not empty at this index, we found the
 	 * block - head of this list. This is approximate best-fit match.
 	 */
 	if (test_bit(slbitstart, &slbitmap)) {
-		//printk("5.5------------------------------------------------\n");
 		*page = pool->freelist[slindex].page;
 		*offset = pool->freelist[slindex].offset;
 		return slindex;
 	}
-	//printk("5.6------------------------------------------------\n");
 	/*
 	 * No best-fit found. Search a bit further in bitmap for a free block.
 	 * Second level bitmap consists of series of 32-bit chunks. Search
@@ -152,30 +145,24 @@ static u32 find_block(struct xv_pool *pool, u32 size,
 	 */
 	slbitstart++;
 	slbitmap >>= slbitstart;
-	//printk("5.7------------------------------------------------\n");
 	/* Skip this search if we were already at end of this bitmap chunk */
 	if ((slbitstart != BITS_PER_LONG) && slbitmap) {
-		//printk("5.8------------------------------------------------\n");
 		slindex += __ffs(slbitmap) + 1;
 		*page = pool->freelist[slindex].page;
 		*offset = pool->freelist[slindex].offset;
 		return slindex;
 	}
-	//printk("5.9------------------------------------------------\n");
 	/* Now do a full two-level bitmap search to find next nearest fit */
 	flindex = slindex / BITS_PER_LONG;
 
 	flbitmap = (pool->flbitmap) >> (flindex + 1);
-	//printk("5.10------------------------------------------------\n");
 	if (!flbitmap)
 		return 0;
-	//printk("5.11------------------------------------------------\n");
 	flindex += __ffs(flbitmap) + 1;
 	slbitmap = pool->slbitmap[flindex];
 	slindex = (flindex * BITS_PER_LONG) + __ffs(slbitmap);
 	*page = pool->freelist[slindex].page;
 	*offset = pool->freelist[slindex].offset;
-	//printk("5.12------------------------------------------------\n");
 	return slindex;
 }
 
@@ -201,10 +188,10 @@ static void insert_block(struct xv_pool *pool, struct page *page, u32 offset,
 
 	if (block->link.next_page) {
 		nextblock = get_ptr_atomic(block->link.next_page,
-					block->link.next_offset, KM_USER1);
+					block->link.next_offset);
 		nextblock->link.prev_page = page;
 		nextblock->link.prev_offset = offset;
-		put_ptr_atomic(nextblock, KM_USER1);
+		put_ptr_atomic(nextblock);
 	}
 
 	__set_bit(slindex % BITS_PER_LONG, &pool->slbitmap[flindex]);
@@ -236,10 +223,10 @@ static void remove_block_head(struct xv_pool *pool,
 		 * sanity, lets do it.
 		 */
 		tmpblock = get_ptr_atomic(pool->freelist[slindex].page,
-				pool->freelist[slindex].offset, KM_USER1);
+				pool->freelist[slindex].offset);
 		tmpblock->link.prev_page = 0;
 		tmpblock->link.prev_offset = 0;
-		put_ptr_atomic(tmpblock, KM_USER1);
+		put_ptr_atomic(tmpblock);
 	}
 }
 
@@ -262,18 +249,18 @@ static void remove_block(struct xv_pool *pool, struct page *page, u32 offset,
 
 	if (block->link.prev_page) {
 		tmpblock = get_ptr_atomic(block->link.prev_page,
-				block->link.prev_offset, KM_USER1);
+				block->link.prev_offset);
 		tmpblock->link.next_page = block->link.next_page;
 		tmpblock->link.next_offset = block->link.next_offset;
-		put_ptr_atomic(tmpblock, KM_USER1);
+		put_ptr_atomic(tmpblock);
 	}
 
 	if (block->link.next_page) {
 		tmpblock = get_ptr_atomic(block->link.next_page,
-				block->link.next_offset, KM_USER1);
+				block->link.next_offset);
 		tmpblock->link.prev_page = block->link.prev_page;
 		tmpblock->link.prev_offset = block->link.prev_offset;
-		put_ptr_atomic(tmpblock, KM_USER1);
+		put_ptr_atomic(tmpblock);
 	}
 }
 
@@ -291,7 +278,7 @@ static int grow_pool(struct xv_pool *pool, gfp_t flags)
 	stat_inc(&pool->total_pages);
 
 	spin_lock(&pool->lock);
-	block = get_ptr_atomic(page, 0, KM_USER0);
+	block = get_ptr_atomic(page, 0);
 
 	block->size = PAGE_SIZE - XV_ALIGN;
 	set_flag(block, BLOCK_FREE);
@@ -300,7 +287,7 @@ static int grow_pool(struct xv_pool *pool, gfp_t flags)
 
 	insert_block(pool, page, 0, block);
 
-	put_ptr_atomic(block, KM_USER0);
+	put_ptr_atomic(block);
 	spin_unlock(&pool->lock);
 
 	return 0;
@@ -322,7 +309,6 @@ struct xv_pool *xv_create_pool(void)
 		return NULL;
 
 	spin_lock_init(&pool->lock);
-	//printk("0------------------------------------------------\n");
 	return pool;
 }
 
@@ -347,97 +333,60 @@ void xv_destroy_pool(struct xv_pool *pool)
 int xv_malloc(struct xv_pool *pool, u32 size, struct page **page,
 		u32 *offset, gfp_t flags)
 {
-	//printk("1------------------------------------------------\n");
 	int error;
 	u32 index, tmpsize, origsize, tmpoffset;
 	struct block_header *block, *tmpblock;
-	//printk("2------------------------------------------------\n");
-	//printk("333------------------------------------------------\n");
 	*page = NULL;
-	//printk("2.1------------------------------------------------\n");
 	*offset = 0;
-	//printk("2.2------------------------------------------------\n");
 	origsize = size;
-	//printk("3------------------------------------------------\n");
 	if (unlikely(!size || size > XV_MAX_ALLOC_SIZE))
 		return -ENOMEM;
-	//printk("3------------------------------------------------\n");
 	size = ALIGN(size, XV_ALIGN);
-	//printk("4------------------------------------------------\n");
 	spin_lock(&pool->lock);
-	//printk("5------------------------------------------------\n");
 	index = find_block(pool, size, page, offset);
-	//printk("6------------------------------------------------\n");
 	if (!*page) {
-		//printk("7------------------------------------------------\n");
 		spin_unlock(&pool->lock);
-		//printk("8------------------------------------------------\n");
 		if (flags & GFP_NOWAIT)
 		{
-			//printk("8.1------------------------------------------------\n");
 			return -ENOMEM;
 		}
-		//printk("9------------------------------------------------\n");
 		error = grow_pool(pool, flags);
-		//printk("10------------------------------------------------\n");
 		if (unlikely(error))
 			return error;
-	    //printk("11------------------------------------------------\n");
 		spin_lock(&pool->lock);
-		//printk("12------------------------------------------------\n");
 		index = find_block(pool, size, page, offset);
-		//printk("13------------------------------------------------\n");
 	}
-	//printk("14------------------------------------------------\n");
 	if (!*page) {
-		//printk("15------------------------------------------------\n");
 		spin_unlock(&pool->lock);
 		return -ENOMEM;
 	}
-	//printk("16------------------------------------------------\n");
-	block = get_ptr_atomic(*page, *offset, KM_USER0);
-	//printk("17------------------------------------------------\n");
-	remove_block_head(pool, block, index);
-	//printk("18------------------------------------------------\n");		
+	block = get_ptr_atomic(*page, *offset);
+	remove_block_head(pool, block, index);	
 	/* Split the block if required */
 	tmpoffset = *offset + size + XV_ALIGN;
 	tmpsize = block->size - size;
 	tmpblock = (struct block_header *)((char *)block + size + XV_ALIGN);
-	//printk("18------------------------------------------------\n");
 	if (tmpsize) {
-		//printk("18------------------------------------------------\n");
 		tmpblock->size = tmpsize - XV_ALIGN;
 		set_flag(tmpblock, BLOCK_FREE);
 		clear_flag(tmpblock, PREV_FREE);
-		//printk("19------------------------------------------------\n");
 		set_blockprev(tmpblock, *offset);
 		if (tmpblock->size >= XV_MIN_ALLOC_SIZE)
 			insert_block(pool, *page, tmpoffset, tmpblock);
-		//printk("20------------------------------------------------\n");
 		if (tmpoffset + XV_ALIGN + tmpblock->size != PAGE_SIZE) {
-			//printk("21------------------------------------------------\n");
 			tmpblock = BLOCK_NEXT(tmpblock);
 			set_blockprev(tmpblock, tmpoffset);
 		}
-		//printk("22------------------------------------------------\n");
 	} else {
 		/* This block is exact fit */
-		//printk("23------------------------------------------------\n");
 		if (tmpoffset != PAGE_SIZE)
 			clear_flag(tmpblock, PREV_FREE);
-		//printk("24------------------------------------------------\n");
 	}
-	//printk("25------------------------------------------------\n");
 	block->size = origsize;
-	//printk("26------------------------------------------------\n");
 	clear_flag(block, BLOCK_FREE);
-	//printk("27------------------------------------------------\n");
-	put_ptr_atomic(block, KM_USER0);
-	//printk("28------------------------------------------------\n");
+	put_ptr_atomic(block);
 	spin_unlock(&pool->lock);
-	//printk("29------------------------------------------------\n");
 	*offset += XV_ALIGN;
-	//printk("30------------------------------------------------\n");
 	return 0;
 }
 
@@ -453,7 +402,7 @@ void xv_free(struct xv_pool *pool, struct page *page, u32 offset)
 
 	spin_lock(&pool->lock);
 
-	page_start = get_ptr_atomic(page, 0, KM_USER0);
+	page_start = get_ptr_atomic(page, 0);
 	block = (struct block_header *)((char *)page_start + offset);
 
 	/* Catch double free bugs */
@@ -495,7 +444,7 @@ void xv_free(struct xv_pool *pool, struct page *page, u32 offset)
 
 	/* No used objects in this page. Free it. */
 	if (block->size == PAGE_SIZE - XV_ALIGN) {
-		put_ptr_atomic(page_start, KM_USER0);
+		put_ptr_atomic(page_start);
 		spin_unlock(&pool->lock);
 
 		__free_page(page);
@@ -513,7 +462,7 @@ void xv_free(struct xv_pool *pool, struct page *page, u32 offset)
 		set_blockprev(tmpblock, offset);
 	}
 
-	put_ptr_atomic(page_start, KM_USER0);
+	put_ptr_atomic(page_start);
 	spin_unlock(&pool->lock);
 }
 

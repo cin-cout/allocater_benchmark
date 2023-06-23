@@ -1,0 +1,1 @@
+cmd_/home/richie/linux2023/allocator_benchmark/bench_kernel_all.mod := { echo  /home/richie/linux2023/allocator_benchmark/bench_kernel.o /home/richie/linux2023/allocator_benchmark/xvmalloc.o;  echo; } > /home/richie/linux2023/allocator_benchmark/bench_kernel_all.mod

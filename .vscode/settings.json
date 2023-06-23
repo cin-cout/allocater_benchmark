@@ -3,6 +3,7 @@
         "kernel.h": "c",
         "xvmalloc_int.h": "c",
         "zsmalloc.h": "c",
-        "mm.h": "c"
+        "mm.h": "c",
+        "string.h": "c"
     }
 }

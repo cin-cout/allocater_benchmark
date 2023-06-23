@@ -20,4 +20,4 @@ if __name__ == "__main__":
     ax.plot(X, Yb, marker = '*', markersize = 3, label = 'xvmalloc')
     ax.legend(loc = 'upper left')
 
-    plt.savefig('./png/allocater_compare.png')
+    plt.savefig('./png/allocator_compare.png')

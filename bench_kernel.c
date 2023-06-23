@@ -18,7 +18,7 @@ MODULE_DESCRIPTION("allocater benchmark driver");
 MODULE_VERSION("0.1");
 
 #define DEV_BENCH_NAME "bench"
-#define MAX_LENGTH 16364
+#define MAX_LENGTH 5056
 
 static dev_t bench_dev = 0;
 static struct cdev *bench_cdev;
@@ -155,6 +155,34 @@ static ssize_t bench_write(struct file *file,
         kt = ktime_get();
         xpool = xv_create_pool();
         run_xvmalloc_benchmark(loops, *offset, *offset+32, page_array, offset_array, num_blks);
+        xv_destroy_pool(xpool);
+        kt = ktime_sub(ktime_get(), kt);
+        break;
+    case 2:
+        kt = ktime_get();
+        zpool = zs_create_pool("mypool");
+        run_zsmalloc_benchmark(loops, *offset, *offset+4096, handle_array, num_blks);
+        zs_destroy_pool(zpool);
+        kt = ktime_sub(ktime_get(), kt);
+        break;
+    case 3:
+        kt = ktime_get();
+        xpool = xv_create_pool();
+        run_xvmalloc_benchmark(loops, *offset, *offset+4096, page_array, offset_array, num_blks);
+        xv_destroy_pool(xpool);
+        kt = ktime_sub(ktime_get(), kt);
+        break;
+    case 4:
+        kt = ktime_get();
+        zpool = zs_create_pool("mypool");
+        run_zsmalloc_benchmark(loops, *offset, *offset+2048, handle_array, num_blks);
+        zs_destroy_pool(zpool);
+        kt = ktime_sub(ktime_get(), kt);
+        break;
+    case 5:
+        kt = ktime_get();
+        xpool = xv_create_pool();
+        run_xvmalloc_benchmark(loops, *offset, *offset+2048, page_array, offset_array, num_blks);
         xv_destroy_pool(xpool);
         kt = ktime_sub(ktime_get(), kt);
         break;
