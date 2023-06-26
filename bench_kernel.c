@@ -197,7 +197,6 @@ static ssize_t bench_write(struct file *file,
     static unsigned long handle_array[10000];
     memset(handle_array, 0, sizeof(handle_array));
 
-    
     static struct page *page_array[10000];
     memset(page_array, 0, sizeof(page_array));
     static u32 offset_array[10000];
@@ -223,40 +222,40 @@ static ssize_t bench_write(struct file *file,
         break;
     case 2:
         kt = ktime_get();
-        zpool = zs_create_pool("mypool");
-        run_zsmalloc_benchmark(loops, *offset, *offset+4096, handle_array, num_blks);
-        zs_destroy_pool(zpool);
+        run_vmalloc_benchmark(loops, *offset, *offset+64, blk_array, num_blks);
         kt = ktime_sub(ktime_get(), kt);
         break;
     case 3:
         kt = ktime_get();
-        xpool = xv_create_pool();
-        run_xvmalloc_benchmark(loops, *offset, *offset+4096, page_array, offset_array, num_blks);
-        xv_destroy_pool(xpool);
+        run_kmalloc_benchmark(loops, *offset, *offset+64, blk_array, num_blks);
         kt = ktime_sub(ktime_get(), kt);
         break;
     case 4:
         kt = ktime_get();
         zpool = zs_create_pool("mypool");
-        run_zsmalloc_benchmark(loops, *offset, *offset+2048, handle_array, num_blks);
+        run_zsmalloc_benchmark(loops, *offset, *offset+4096, handle_array, num_blks);
         zs_destroy_pool(zpool);
         kt = ktime_sub(ktime_get(), kt);
         break;
     case 5:
         kt = ktime_get();
         xpool = xv_create_pool();
-        run_xvmalloc_benchmark(loops, *offset, *offset+2048, page_array, offset_array, num_blks);
+        run_xvmalloc_benchmark(loops, *offset, *offset+4096, page_array, offset_array, num_blks);
         xv_destroy_pool(xpool);
         kt = ktime_sub(ktime_get(), kt);
         break;
     case 6:
         kt = ktime_get();
-        run_vmalloc_benchmark(loops, *offset, *offset+64, blk_array, num_blks);
+        zpool = zs_create_pool("mypool");
+        run_zsmalloc_benchmark(loops, *offset, *offset+2048, handle_array, num_blks);
+        zs_destroy_pool(zpool);
         kt = ktime_sub(ktime_get(), kt);
         break;
     case 7:
         kt = ktime_get();
-        run_kmalloc_benchmark(loops, *offset, *offset+64, blk_array, num_blks);
+        xpool = xv_create_pool();
+        run_xvmalloc_benchmark(loops, *offset, *offset+2048, page_array, offset_array, num_blks);
+        xv_destroy_pool(xpool);
         kt = ktime_sub(ktime_get(), kt);
         break;
     }
