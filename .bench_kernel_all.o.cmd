@@ -1,1 +1,0 @@
-cmd_/home/richie/linux2023/allocator_benchmark/bench_kernel_all.o := ld -m elf_x86_64  -z max-page-size=0x200000 -z noexecstack     -r -o /home/richie/linux2023/allocator_benchmark/bench_kernel_all.o /home/richie/linux2023/allocator_benchmark/bench_kernel.o /home/richie/linux2023/allocator_benchmark/xvmalloc.o

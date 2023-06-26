@@ -1,1 +1,0 @@
-cmd_/home/richie/linux2023/allocator_benchmark/bench_kernel_all.ko := ld -r -m elf_x86_64  -z max-page-size=0x200000 -z noexecstack   --build-id  -T ./scripts/module-common.lds -o /home/richie/linux2023/allocator_benchmark/bench_kernel_all.ko /home/richie/linux2023/allocator_benchmark/bench_kernel_all.o /home/richie/linux2023/allocator_benchmark/bench_kernel_all.mod.o;  true
