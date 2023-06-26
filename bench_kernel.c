@@ -10,6 +10,7 @@
 #include <linux/uaccess.h>
 
 #include <linux/zsmalloc.h>
+#include <linux/vmalloc.h>
 #include "xvmalloc.h"
 
 MODULE_LICENSE("Dual MIT/GPL");
@@ -46,27 +47,21 @@ static void run_zsmalloc_benchmark(size_t loops,
         
 
         if (handle_array[next_idx]) {
-			//zs_unmap_object(zpool, handle_array[i]);
             zs_free(zpool, handle_array[next_idx]);
             /* Insert the newly alloced block into the array at a random
              * point.
              */
             handle_array[next_idx] = zs_malloc(zpool, blk_size, GFP_KERNEL);
-            //zs_map_object(zpool, handle_array[next_idx], ZS_MM_RW);
-			//zs_unmap_object(zpool, handle_array[next_idx]);
         } else {
             /* Insert the newly alloced block into the array at a random point.
              */
             handle_array[next_idx] = zs_malloc(zpool, blk_size, GFP_KERNEL);
-            //zs_map_object(zpool, handle_array[next_idx], ZS_MM_RW);
-			//zs_unmap_object(zpool, handle_array[next_idx]);
         }
     }
 
     /* Free up all allocated blocks. */
     for (size_t i = 0; i < num_blks; i++) {
         if (handle_array[i]){
-            //zs_unmap_object(zpool, handle_array[i]);
             zs_free(zpool, handle_array[i]);
         }
     }
@@ -102,6 +97,72 @@ static void run_xvmalloc_benchmark(size_t loops,
     for (size_t i = 0; i < num_blks; i++) {
         if (page_array[i])
             xv_free(xpool, page_array[i], offset_array[i]);
+    }
+}
+
+static void run_vmalloc_benchmark(size_t loops,
+                                size_t blk_min,
+                                size_t blk_max,
+                                void **blk_array,
+                                size_t num_blks)
+{
+
+    while (loops--) {
+        size_t next_idx = (size_t) prandom_u32() % num_blks;
+        size_t blk_size = get_random_block_size(blk_min, blk_max);
+        
+
+        if (blk_array[next_idx]) {
+            vfree(blk_array[next_idx]);
+            /* Insert the newly alloced block into the array at a random
+             * point.
+             */
+            blk_array[next_idx] = vmalloc(blk_size);
+        } else {
+            /* Insert the newly alloced block into the array at a random point.
+             */
+            blk_array[next_idx] = vmalloc(blk_size);
+        }
+    }
+
+    /* Free up all allocated blocks. */
+    for (size_t i = 0; i < num_blks; i++) {
+        if (blk_array[i]){
+            vfree(blk_array[i]);
+        }
+    }
+}
+
+static void run_kmalloc_benchmark(size_t loops,
+                                size_t blk_min,
+                                size_t blk_max,
+                                void **blk_array,
+                                size_t num_blks)
+{
+
+    while (loops--) {
+        size_t next_idx = (size_t) prandom_u32() % num_blks;
+        size_t blk_size = get_random_block_size(blk_min, blk_max);
+        
+
+        if (blk_array[next_idx]) {
+            kfree(blk_array[next_idx]);
+            /* Insert the newly alloced block into the array at a random
+             * point.
+             */
+            blk_array[next_idx] = kmalloc(blk_size, GFP_KERNEL);
+        } else {
+            /* Insert the newly alloced block into the array at a random point.
+             */
+            blk_array[next_idx] = kmalloc(blk_size, GFP_KERNEL);
+        }
+    }
+
+    /* Free up all allocated blocks. */
+    for (size_t i = 0; i < num_blks; i++) {
+        if (blk_array[i]){
+            kfree(blk_array[i]);
+        }
     }
 }
 
@@ -142,19 +203,21 @@ static ssize_t bench_write(struct file *file,
     static u32 offset_array[10000];
     memset(offset_array, 0, sizeof(offset_array));
     
+    static void *blk_array[10000];
+    memset(blk_array, 0, sizeof(blk_array));
 
     switch (size) {
     case 0:
         kt = ktime_get();
         zpool = zs_create_pool("mypool");
-        run_zsmalloc_benchmark(loops, *offset, *offset+32, handle_array, num_blks);
+        run_zsmalloc_benchmark(loops, *offset, *offset+64, handle_array, num_blks);
         zs_destroy_pool(zpool);
         kt = ktime_sub(ktime_get(), kt);
         break;
     case 1:
         kt = ktime_get();
         xpool = xv_create_pool();
-        run_xvmalloc_benchmark(loops, *offset, *offset+32, page_array, offset_array, num_blks);
+        run_xvmalloc_benchmark(loops, *offset, *offset+64, page_array, offset_array, num_blks);
         xv_destroy_pool(xpool);
         kt = ktime_sub(ktime_get(), kt);
         break;
@@ -184,6 +247,16 @@ static ssize_t bench_write(struct file *file,
         xpool = xv_create_pool();
         run_xvmalloc_benchmark(loops, *offset, *offset+2048, page_array, offset_array, num_blks);
         xv_destroy_pool(xpool);
+        kt = ktime_sub(ktime_get(), kt);
+        break;
+    case 6:
+        kt = ktime_get();
+        run_vmalloc_benchmark(loops, *offset, *offset+64, blk_array, num_blks);
+        kt = ktime_sub(ktime_get(), kt);
+        break;
+    case 7:
+        kt = ktime_get();
+        run_kmalloc_benchmark(loops, *offset, *offset+64, blk_array, num_blks);
         kt = ktime_sub(ktime_get(), kt);
         break;
     }
